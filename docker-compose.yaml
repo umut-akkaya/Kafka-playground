@@ -1,0 +1,173 @@
+name: KafkaTestApp
+
+services:
+  kafka-ui:
+    container_name: kafka-ui
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - 8080:8080
+    environment:
+      DYNAMIC_CONFIG_ENABLED: 'false'
+      KAFKA_CLUSTERS_0_NAME: FirstCluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-1:9092
+      KAFKA_CLUSTERS_1_NAME: SecondCluster
+      KAFKA_CLUSTERS_1_BOOTSTRAPSERVERS: kafka-4:9092
+    networks:
+      - broker-network
+
+  kafka-1:
+    image: confluentinc/cp-kafka:7.9.10
+    environment:
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper-1:2181
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-1:9092
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_NODE_ID=11
+      - CLUSTER_ID=IY1k4jGPQdSWlJrJpRRvbA
+    domainname: kafka-1
+    ports:
+      - 9092:9092
+    depends_on:
+      - zookeeper-1
+    networks:
+      - broker-network
+    healthcheck:
+      test: /bin/kafka-cluster cluster-id --bootstrap-server kafka-1:9092 || exit 1
+      interval: 1s
+      timeout: 60s
+      retries: 60
+    volumes:
+      - kafka-1-data:/var/lib/kafka/data
+
+  kafka-2:
+    image: confluentinc/cp-kafka:7.9.10
+    environment:
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper-1:2181
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-2:9092
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_NODE_ID=12
+      - CLUSTER_ID=IY1k4jGPQdSWlJrJpRRvbA
+    domainname: kafka-2
+    depends_on:
+      - zookeeper-1
+    networks:
+      - broker-network
+    volumes:
+      - kafka-2-data:/var/lib/kafka/data
+
+  kafka-3:
+    image: confluentinc/cp-kafka:7.9.10
+    environment:
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper-1:2181
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-3:9092
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_NODE_ID=13
+      - CLUSTER_ID=IY1k4jGPQdSWlJrJpRRvbA
+    domainname: kafka-3
+    depends_on:
+      - zookeeper-1
+    networks:
+      - broker-network
+    volumes:
+      - kafka-3-data:/var/lib/kafka/data
+
+  zookeeper-1:
+    image: zookeeper:3.9.6
+    deploy:
+      mode: global
+      replicas: 1
+    domainname: zookeeper-1
+    networks:
+      - broker-network
+
+  kafka-4:
+    image: confluentinc/cp-kafka:7.9.10
+    environment:
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper-2:2181
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-4:9092
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_NODE_ID=21
+    domainname: kafka-4
+    depends_on:
+      - zookeeper-2
+    networks:
+      - broker-network
+
+  kafka-5:
+    image: confluentinc/cp-kafka:7.9.10
+    environment:
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper-2:2181
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-5:9092
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_NODE_ID=22
+    domainname: kafka-5
+    depends_on:
+      - zookeeper-2
+    networks:
+      - broker-network
+
+  kafka-6:
+    image: confluentinc/cp-kafka:7.9.10
+    environment:
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper-2:2181
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-6:9092
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_NODE_ID=23
+    domainname: kafka-6
+    depends_on:
+      - zookeeper-2
+    networks:
+      - broker-network
+
+  zookeeper-2:
+    image: zookeeper:3.9.6
+    deploy:
+      mode: global
+      replicas: 1
+    domainname: zookeeper-2
+    networks:
+      - broker-network
+
+  topic-initializer:
+    image: confluentinc/cp-kafka:7.9.10
+    entrypoint: 
+    - /bin/sh
+    - -c
+    command:
+    - |
+      kafka-topics --bootstrap-server kafka-1:9092 --create --topic orders-events --replication-factor 2 --partitions 2 && \
+      kafka-topics --bootstrap-server kafka-1:9092 --create --topic refunds-events --replication-factor 2 --partitions 2 && \
+      kafka-topics --bootstrap-server kafka-1:9092 --create --topic rewards-events --replication-factor 2 --partitions 2 && \
+      kafka-topics --bootstrap-server kafka-1:9092 --create --topic tickets-events --replication-factor 2 --partitions 2 && \
+      kafka-topics --bootstrap-server kafka-1:9092 --create --topic random-events --replication-factor 2 --partitions 2
+    networks:
+      - broker-network
+    depends_on:
+      kafka-1:
+        condition: service_healthy
+  
+  client:
+    image: kafka-client:0.1
+    environment:
+      - CLIENT_TOPIC_NAME=orders-events
+      - CLIENT_CONNECT=kafka-1:9092
+      - CLIENT_ROLE=producer
+      - CLIENT_PERIOD=2
+    depends_on:
+      topic-initializer:
+        condition: service_completed_successfully
+    networks:
+      - broker-network
+
+networks:
+  broker-network:
+
+volumes:
+  kafka-1-data:
+  kafka-2-data:
+  kafka-3-data:
