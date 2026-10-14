@@ -23,7 +23,6 @@ services:
       - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
       - KAFKA_NODE_ID=11
-      - CLUSTER_ID=IY1k4jGPQdSWlJrJpRRvbA
     domainname: kafka-1
     ports:
       - 9092:9092
@@ -31,13 +30,9 @@ services:
       - zookeeper-1
     networks:
       - broker-network
-    healthcheck:
-      test: /bin/kafka-cluster cluster-id --bootstrap-server kafka-1:9092 || exit 1
-      interval: 1s
-      timeout: 60s
-      retries: 60
     volumes:
       - kafka-1-data:/var/lib/kafka/data
+    restart: on-failure
 
   kafka-2:
     image: confluentinc/cp-kafka:7.9.10
@@ -47,7 +42,6 @@ services:
       - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
       - KAFKA_NODE_ID=12
-      - CLUSTER_ID=IY1k4jGPQdSWlJrJpRRvbA
     domainname: kafka-2
     depends_on:
       - zookeeper-1
@@ -55,6 +49,7 @@ services:
       - broker-network
     volumes:
       - kafka-2-data:/var/lib/kafka/data
+    restart: on-failure
 
   kafka-3:
     image: confluentinc/cp-kafka:7.9.10
@@ -64,7 +59,6 @@ services:
       - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
       - KAFKA_NODE_ID=13
-      - CLUSTER_ID=IY1k4jGPQdSWlJrJpRRvbA
     domainname: kafka-3
     depends_on:
       - zookeeper-1
@@ -72,15 +66,21 @@ services:
       - broker-network
     volumes:
       - kafka-3-data:/var/lib/kafka/data
+    restart: on-failure
 
   zookeeper-1:
-    image: zookeeper:3.9.6
+    image: confluentinc/cp-zookeeper:7.9.10
     deploy:
       mode: global
       replicas: 1
     domainname: zookeeper-1
+    environment:
+      - ZOOKEEPER_CLIENT_PORT=2181
     networks:
       - broker-network
+    volumes:
+      - zookeeper-1-data:/var/lib/zookeeper/data
+      - zookeeper-1-log:/var/lib/zookeeper/log
 
   kafka-4:
     image: confluentinc/cp-kafka:7.9.10
@@ -140,29 +140,170 @@ services:
     - -c
     command:
     - |
-      kafka-topics --bootstrap-server kafka-1:9092 --create --topic orders-events --replication-factor 2 --partitions 2 && \
-      kafka-topics --bootstrap-server kafka-1:9092 --create --topic refunds-events --replication-factor 2 --partitions 2 && \
-      kafka-topics --bootstrap-server kafka-1:9092 --create --topic rewards-events --replication-factor 2 --partitions 2 && \
-      kafka-topics --bootstrap-server kafka-1:9092 --create --topic tickets-events --replication-factor 2 --partitions 2 && \
-      kafka-topics --bootstrap-server kafka-1:9092 --create --topic random-events --replication-factor 2 --partitions 2
+      kafka-topics --bootstrap-server kafka-1:9092 --create --topic orders-events --replication-factor 2 --partitions 2 || true && \
+      kafka-topics --bootstrap-server kafka-1:9092 --create --topic refunds-events --replication-factor 2 --partitions 2 || true && \
+      kafka-topics --bootstrap-server kafka-1:9092 --create --topic rewards-events --replication-factor 2 --partitions 2 || true && \
+      kafka-topics --bootstrap-server kafka-1:9092 --create --topic tickets-events --replication-factor 2 --partitions 2 || true && \
+      kafka-topics --bootstrap-server kafka-1:9092 --create --topic random-events --replication-factor 2 --partitions 2 || true
     networks:
       - broker-network
     depends_on:
-      kafka-1:
-        condition: service_healthy
+      - kafka-1
   
-  client:
+  client-producer-orders:
     image: kafka-client:0.1
     environment:
       - CLIENT_TOPIC_NAME=orders-events
       - CLIENT_CONNECT=kafka-1:9092
       - CLIENT_ROLE=producer
-      - CLIENT_PERIOD=2
+      - CLIENT_PERIOD=2000
     depends_on:
       topic-initializer:
         condition: service_completed_successfully
+    deploy:
+      replicas: 5
     networks:
       - broker-network
+
+  client-producer-refunds:
+    image: kafka-client:0.1
+    environment:
+      - CLIENT_TOPIC_NAME=refunds-events
+      - CLIENT_CONNECT=kafka-1:9092
+      - CLIENT_ROLE=producer
+      - CLIENT_PERIOD=30000
+    depends_on:
+      topic-initializer:
+        condition: service_completed_successfully
+    deploy:
+      replicas: 2
+    networks:
+      - broker-network
+
+  client-producer-rewards:
+    image: kafka-client:0.1
+    environment:
+      - CLIENT_TOPIC_NAME=rewards-events
+      - CLIENT_CONNECT=kafka-1:9092
+      - CLIENT_ROLE=producer
+      - CLIENT_PERIOD=10000
+    depends_on:
+      topic-initializer:
+        condition: service_completed_successfully
+    deploy:
+      replicas: 1
+    networks:
+      - broker-network
+
+  client-producer-tickets:
+    image: kafka-client:0.1
+    environment:
+      - CLIENT_TOPIC_NAME=tickets-events
+      - CLIENT_CONNECT=kafka-1:9092
+      - CLIENT_ROLE=producer
+      - CLIENT_PERIOD=15000
+    depends_on:
+      topic-initializer:
+        condition: service_completed_successfully
+    deploy:
+      replicas: 1
+    networks:
+      - broker-network
+
+  client-producer-random:
+    image: kafka-client:0.1
+    environment:
+      - CLIENT_TOPIC_NAME=random-events
+      - CLIENT_CONNECT=kafka-1:9092
+      - CLIENT_ROLE=producer
+      - CLIENT_PERIOD=45000
+    depends_on:
+      topic-initializer:
+        condition: service_completed_successfully
+    deploy:
+      replicas: 2
+    networks:
+      - broker-network
+
+  client-consumer-random:
+    image: kafka-client:0.1
+    environment:
+      - CLIENT_TOPIC_NAME=random-events
+      - CLIENT_CONNECT=kafka-1:9092
+      - CLIENT_ROLE=consumer
+      - CLIENT_PERIOD=1000
+    depends_on:
+      topic-initializer:
+        condition: service_completed_successfully
+    deploy:
+      replicas: 2
+    networks:
+      - broker-network
+    restart: always
+
+  client-consumer-tickets:
+    image: kafka-client:0.1
+    environment:
+      - CLIENT_TOPIC_NAME=tickets-events
+      - CLIENT_CONNECT=kafka-1:9092
+      - CLIENT_ROLE=consumer
+      - CLIENT_PERIOD=10000
+    depends_on:
+      topic-initializer:
+        condition: service_completed_successfully
+    deploy:
+      replicas: 1
+    networks:
+      - broker-network
+    restart: always
+
+  client-consumer-rewards:
+    image: kafka-client:0.1
+    environment:
+      - CLIENT_TOPIC_NAME=rewards-events
+      - CLIENT_CONNECT=kafka-1:9092
+      - CLIENT_ROLE=consumer
+      - CLIENT_PERIOD=8000
+    depends_on:
+      topic-initializer:
+        condition: service_completed_successfully
+    deploy:
+      replicas: 2
+    networks:
+      - broker-network
+    restart: always
+
+  client-consumer-refunds:
+    image: kafka-client:0.1
+    environment:
+      - CLIENT_TOPIC_NAME=refunds-events
+      - CLIENT_CONNECT=kafka-1:9092
+      - CLIENT_ROLE=consumer
+      - CLIENT_PERIOD=25000
+    depends_on:
+      topic-initializer:
+        condition: service_completed_successfully
+    deploy:
+      replicas: 2
+    networks:
+      - broker-network
+    restart: always
+
+  client-consumer-orders:
+    image: kafka-client:0.1
+    environment:
+      - CLIENT_TOPIC_NAME=orders-events
+      - CLIENT_CONNECT=kafka-1:9092
+      - CLIENT_ROLE=consumer
+      - CLIENT_PERIOD=1000
+    depends_on:
+      topic-initializer:
+        condition: service_completed_successfully
+    deploy:
+      replicas: 3
+    networks:
+      - broker-network
+    restart: always
 
 networks:
   broker-network:
@@ -171,3 +312,5 @@ volumes:
   kafka-1-data:
   kafka-2-data:
   kafka-3-data:
+  zookeeper-1-data:
+  zookeeper-1-log:

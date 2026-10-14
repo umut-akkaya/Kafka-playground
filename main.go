@@ -65,9 +65,41 @@ func main() {
 				Value:          []byte(strconv.Itoa(rand.IntN(100))),
 				Key:            []byte(strconv.Itoa(rand.IntN(10)))}, nil)
 
-			p.Flush(10000)
-
-			time.Sleep(time.Duration(periodValue) * time.Second)
+			time.Sleep(time.Duration(periodValue) * time.Millisecond)
 		}
+	} else if clientRole == "consumer" {
+		consumer, err := kafka.NewConsumer(&kafka.ConfigMap{
+			"bootstrap.servers":  kafkaServer,
+			"group.id":           topicName,
+			"client.id":          hostName,
+			"auto.offset.reset":  "earliest",
+			"enable.auto.commit": "true"})
+
+		if err != nil {
+			fmt.Printf("Failed to create consumer: %s\n", err)
+			os.Exit(1)
+		}
+
+		err = consumer.SubscribeTopics([]string{topicName}, nil)
+
+		var run bool = true
+		for run == true {
+			ev := consumer.Poll(1000)
+			switch e := ev.(type) {
+			case *kafka.Message:
+				fmt.Printf("%s consumer got %s from %s topic\n", hostName, string(e.Value), topicName)
+				time.Sleep(time.Duration(periodValue) * time.Millisecond)
+			case kafka.Error:
+				fmt.Fprintf(os.Stderr, "%% Error: %v\n", e)
+				run = false
+			default:
+				fmt.Printf("Ignored %v\n", e)
+				time.Sleep(time.Duration(periodValue) * time.Millisecond)
+			}
+		}
+
+	} else {
+		fmt.Println("CLIENT_ROLE Role is not valid")
+		os.Exit(1)
 	}
 }
