@@ -152,14 +152,16 @@ services:
   
   client-producer-orders:
     image: kafka-client:0.1
+    profiles:
+      - producers
     environment:
       - CLIENT_TOPIC_NAME=orders-events
       - CLIENT_CONNECT=kafka-1:9092
       - CLIENT_ROLE=producer
       - CLIENT_PERIOD=2000
-    depends_on:
-      topic-initializer:
-        condition: service_completed_successfully
+    # depends_on:
+    #   topic-initializer:
+    #     condition: service_completed_successfully
     deploy:
       replicas: 5
     networks:
@@ -167,14 +169,16 @@ services:
 
   client-producer-refunds:
     image: kafka-client:0.1
+    profiles:
+      - producers
     environment:
       - CLIENT_TOPIC_NAME=refunds-events
       - CLIENT_CONNECT=kafka-1:9092
       - CLIENT_ROLE=producer
       - CLIENT_PERIOD=30000
-    depends_on:
-      topic-initializer:
-        condition: service_completed_successfully
+    # depends_on:
+    #   topic-initializer:
+    #     condition: service_completed_successfully
     deploy:
       replicas: 2
     networks:
@@ -182,14 +186,16 @@ services:
 
   client-producer-rewards:
     image: kafka-client:0.1
+    profiles:
+      - producers
     environment:
       - CLIENT_TOPIC_NAME=rewards-events
       - CLIENT_CONNECT=kafka-1:9092
       - CLIENT_ROLE=producer
       - CLIENT_PERIOD=10000
-    depends_on:
-      topic-initializer:
-        condition: service_completed_successfully
+    # depends_on:
+    #   topic-initializer:
+    #     condition: service_completed_successfully
     deploy:
       replicas: 1
     networks:
@@ -197,14 +203,16 @@ services:
 
   client-producer-tickets:
     image: kafka-client:0.1
+    profiles:
+      - producers
     environment:
       - CLIENT_TOPIC_NAME=tickets-events
       - CLIENT_CONNECT=kafka-1:9092
       - CLIENT_ROLE=producer
       - CLIENT_PERIOD=15000
-    depends_on:
-      topic-initializer:
-        condition: service_completed_successfully
+    # depends_on:
+    #   topic-initializer:
+    #     condition: service_completed_successfully
     deploy:
       replicas: 1
     networks:
@@ -212,14 +220,16 @@ services:
 
   client-producer-random:
     image: kafka-client:0.1
+    profiles:
+      - producers
     environment:
       - CLIENT_TOPIC_NAME=random-events
       - CLIENT_CONNECT=kafka-1:9092
       - CLIENT_ROLE=producer
       - CLIENT_PERIOD=45000
-    depends_on:
-      topic-initializer:
-        condition: service_completed_successfully
+    # depends_on:
+    #   topic-initializer:
+    #     condition: service_completed_successfully
     deploy:
       replicas: 2
     networks:
@@ -227,14 +237,16 @@ services:
 
   client-consumer-random:
     image: kafka-client:0.1
+    profiles:
+      - consumers
     environment:
       - CLIENT_TOPIC_NAME=random-events
       - CLIENT_CONNECT=kafka-1:9092
       - CLIENT_ROLE=consumer
       - CLIENT_PERIOD=1000
-    depends_on:
-      topic-initializer:
-        condition: service_completed_successfully
+    # depends_on:
+    #   topic-initializer:
+    #     condition: service_completed_successfully
     deploy:
       replicas: 2
     networks:
@@ -243,14 +255,16 @@ services:
 
   client-consumer-tickets:
     image: kafka-client:0.1
+    profiles:
+      - consumers
     environment:
       - CLIENT_TOPIC_NAME=tickets-events
       - CLIENT_CONNECT=kafka-1:9092
       - CLIENT_ROLE=consumer
       - CLIENT_PERIOD=10000
-    depends_on:
-      topic-initializer:
-        condition: service_completed_successfully
+    # depends_on:
+    #   topic-initializer:
+    #     condition: service_completed_successfully
     deploy:
       replicas: 1
     networks:
@@ -259,14 +273,16 @@ services:
 
   client-consumer-rewards:
     image: kafka-client:0.1
+    profiles:
+      - consumers
     environment:
       - CLIENT_TOPIC_NAME=rewards-events
       - CLIENT_CONNECT=kafka-1:9092
       - CLIENT_ROLE=consumer
       - CLIENT_PERIOD=8000
-    depends_on:
-      topic-initializer:
-        condition: service_completed_successfully
+    # depends_on:
+    #   topic-initializer:
+    #     condition: service_completed_successfully
     deploy:
       replicas: 2
     networks:
@@ -275,14 +291,16 @@ services:
 
   client-consumer-refunds:
     image: kafka-client:0.1
+    profiles:
+      - consumers
     environment:
       - CLIENT_TOPIC_NAME=refunds-events
       - CLIENT_CONNECT=kafka-1:9092
       - CLIENT_ROLE=consumer
       - CLIENT_PERIOD=25000
-    depends_on:
-      topic-initializer:
-        condition: service_completed_successfully
+    # depends_on:
+    #   topic-initializer:
+    #     condition: service_completed_successfully
     deploy:
       replicas: 2
     networks:
@@ -291,19 +309,37 @@ services:
 
   client-consumer-orders:
     image: kafka-client:0.1
+    profiles:
+      - consumers
     environment:
       - CLIENT_TOPIC_NAME=orders-events
       - CLIENT_CONNECT=kafka-1:9092
       - CLIENT_ROLE=consumer
       - CLIENT_PERIOD=1000
-    depends_on:
-      topic-initializer:
-        condition: service_completed_successfully
+    # depends_on:
+    #   topic-initializer:
+    #     condition: service_completed_successfully
     deploy:
       replicas: 3
     networks:
       - broker-network
     restart: always
+
+  mirror_maker:
+    image: confluentinc/cp-kafka:7.9.10
+    profiles:
+      - mirroring
+    entrypoint:
+    - connect-mirror-maker
+    environment:
+      - KAFKA_LOG4J_OPTS=-Dlog4j.configuration=file:/etc/kafka/connect-log4j.properties
+    volumes:
+    - ./mm2.conf:/etc/kafka/connect-mirror-maker.properties
+    - ./log4j.conf:/etc/kafka/connect-log4j.properties
+    command:
+    - /etc/kafka/connect-mirror-maker.properties
+    networks:
+      - broker-network
 
 networks:
   broker-network:
